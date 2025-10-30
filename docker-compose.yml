@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # YARNNN Web Application
+  yarnnn-web:
+    image: rightnow-web:latest
+    container_name: yarnnn-web
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    networks:
+      - yarnnn-network
+    volumes:
+      - yarnnn-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Knowledge Agent (Example)
+  knowledge-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowledge-agent
+    depends_on:
+      - yarnnn-web
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - YARNNN_API_URL=http://yarnnn-web:3000
+      - YARNNN_API_KEY=${YARNNN_API_KEY}
+      - YARNNN_WORKSPACE_ID=${YARNNN_WORKSPACE_ID}
+      - AGENT_AUTO_APPROVE=${AGENT_AUTO_APPROVE:-false}
+      - AGENT_CONFIDENCE_THRESHOLD=${AGENT_CONFIDENCE_THRESHOLD:-0.8}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - yarnnn-network
+    volumes:
+      - ./examples:/app/examples
+      - agent-state:/app/state
+    command: python examples/knowledge-agent/run.py --basket-id ${BASKET_ID} --continuous
+    restart: unless-stopped
+
+networks:
+  yarnnn-network:
+    driver: bridge
+
+volumes:
+  yarnnn-data:
+  agent-state:
