@@ -51,8 +51,7 @@ class InMemoryProvider(MemoryProvider):
         """
         context = Context(
             content=content,
-            metadata=metadata or {},
-            source="in_memory"
+            metadata=metadata or {}
         )
         self.data.append(context)
         logger.debug(f"Added content: {content[:50]}...")
@@ -110,6 +109,44 @@ class InMemoryProvider(MemoryProvider):
                     break
 
         logger.debug(f"Found {len(results)} results")
+        return results
+
+    async def get_all(
+        self,
+        filters: Optional[dict] = None,
+        limit: int = 50
+    ) -> List[Context]:
+        """
+        Get all items from memory (with optional filtering).
+
+        Args:
+            filters: Optional metadata filters (checks exact match)
+            limit: Maximum results to return
+
+        Returns:
+            List of Context objects
+        """
+        logger.debug("Getting all items from memory")
+
+        if not filters:
+            # No filters, return all items up to limit
+            return self.data[:limit]
+
+        # Apply filters
+        results = []
+        for context in self.data:
+            # Check if all filter criteria match
+            matches = all(
+                context.metadata.get(k) == v
+                for k, v in filters.items()
+            )
+            if matches:
+                results.append(context)
+
+                if len(results) >= limit:
+                    break
+
+        logger.debug(f"Found {len(results)} items")
         return results
 
     async def store(self, context: Context) -> str:
