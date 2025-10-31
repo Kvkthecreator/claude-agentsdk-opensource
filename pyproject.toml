@@ -3,16 +3,16 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "yarnnn-agents"
+name = "claude-agent-sdk"
 version = "0.1.0"
-description = "Governed autonomous agents powered by Claude Agent SDK and YARNNN substrate"
+description = "Generic framework for building autonomous AI agents with pluggable integrations (memory, governance, tasks). Includes YARNNN integration for governed long-term memory."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "YARNNN Contributors"}
 ]
-keywords = ["ai", "agents", "memory", "governance", "claude", "yarnnn"]
+keywords = ["ai", "agents", "claude", "autonomous", "memory", "governance", "yarnnn", "pluggable", "integrations", "framework"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -56,7 +56,14 @@ Repository = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn"
 "Bug Tracker" = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn/issues"
 
 [tool.setuptools]
-packages = ["yarnnn_agents", "integrations.yarnnn"]
+packages = [
+    "claude_agent_sdk",
+    "claude_agent_sdk.integrations",
+    "claude_agent_sdk.integrations.yarnnn",
+    # Backward compatibility (deprecated)
+    "yarnnn_agents",
+    "integrations.yarnnn"
+]
 
 [tool.black]
 line-length = 100
