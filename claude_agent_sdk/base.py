@@ -298,9 +298,9 @@ class BaseAgent(ABC):
         return f"""You are an autonomous agent (ID: {self.agent_id}, Type: {self.agent_type}).
 
 Your capabilities depend on the providers configured:
-- Memory: {"Available" if self.memory else "Not configured"}
-- Governance: {"Available" if self.governance else "Not configured"}
-- Tasks: {"Available" if self.tasks else "Not configured"}
+- Memory: {"Available" if self.memory is not None else "Not configured"}
+- Governance: {"Available" if self.governance is not None else "Not configured"}
+- Tasks: {"Available" if self.tasks is not None else "Not configured"}
 
 Be helpful, accurate, and thoughtful in your responses."""
 
