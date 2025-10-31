@@ -80,10 +80,30 @@ class YarnnnGovernance(GovernanceProvider):
             changes: List of changes to propose
             confidence: Agent's confidence (0.0-1.0)
             reasoning: Explanation of changes
-            metadata: Additional metadata (agent_session_id, etc.)
+            metadata: Additional metadata for linking sessions and tracking.
+                     Recommended fields for session linking:
+                     - agent_session_id: AgentSession.id from Agent SDK
+                     - agent_id: Persistent agent identifier
+                     - work_session_id: Optional YARNNN WorkSession ID
+                     - workspace_id: Optional workspace context
+                     - task_id: Optional external task identifier
 
         Returns:
-            Created proposal
+            Created proposal with enriched metadata
+
+        Example:
+            # Link proposal to agent session and work session
+            proposal = await governance.propose(
+                changes=[...],
+                confidence=0.85,
+                reasoning="Adding research insights",
+                metadata={
+                    "agent_session_id": agent.current_session.id,
+                    "agent_id": agent.agent_id,
+                    "work_session_id": "work_session_123",
+                    "workspace_id": "ws_001"
+                }
+            )
         """
         logger.info(f"Creating proposal with {len(changes)} changes")
 
@@ -218,6 +238,68 @@ class YarnnnGovernance(GovernanceProvider):
         }
 
         return status_map.get(yarnnn_status, "pending")
+
+    @staticmethod
+    def create_session_metadata(
+        agent_session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        work_session_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+        **additional_metadata: Any
+    ) -> Dict[str, Any]:
+        """
+        Helper to create standardized session linking metadata for proposals.
+
+        This ensures consistent metadata structure when linking Agent SDK sessions
+        with YARNNN Work sessions and other external task systems.
+
+        Args:
+            agent_session_id: AgentSession.id from Agent SDK
+            agent_id: Persistent agent identifier
+            work_session_id: YARNNN WorkSession ID
+            workspace_id: Workspace context
+            task_id: External task system identifier
+            **additional_metadata: Any other custom metadata fields
+
+        Returns:
+            Standardized metadata dictionary
+
+        Example:
+            from claude_agent_sdk.integrations.yarnnn import YarnnnGovernance
+
+            metadata = YarnnnGovernance.create_session_metadata(
+                agent_session_id=agent.current_session.id,
+                agent_id=agent.agent_id,
+                work_session_id="work_session_123",
+                workspace_id="ws_001",
+                custom_field="custom_value"
+            )
+
+            proposal = await governance.propose(
+                changes=[...],
+                confidence=0.85,
+                reasoning="Research insights",
+                metadata=metadata
+            )
+        """
+        metadata: Dict[str, Any] = {}
+
+        if agent_session_id:
+            metadata["agent_session_id"] = agent_session_id
+        if agent_id:
+            metadata["agent_id"] = agent_id
+        if work_session_id:
+            metadata["work_session_id"] = work_session_id
+        if workspace_id:
+            metadata["workspace_id"] = workspace_id
+        if task_id:
+            metadata["task_id"] = task_id
+
+        # Add any additional custom metadata
+        metadata.update(additional_metadata)
+
+        return metadata
 
     # Convenience methods
 
