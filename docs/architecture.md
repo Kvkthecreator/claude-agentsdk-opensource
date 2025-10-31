@@ -1,570 +1,272 @@
-# Architecture
+# Architecture Overview
 
-Complete architectural overview of YARNNN Agents framework.
+**Claude Agent SDK - Generic Framework for Autonomous Agents**
 
-## System Overview
+The Claude Agent SDK provides a clean, extensible architecture for building autonomous agents with pluggable integrations.
+
+## Core Philosophy
+
+This is a **generic framework**, not a YARNNN-specific tool. YARNNN is just one of many possible integrations.
+
+### Key Principles
+
+1. **Provider-Agnostic**: Works with any memory/governance/task provider
+2. **Agent Identity**: Persistent agents with multiple sessions over time
+3. **Dependency Injection**: Providers are injected, not hardcoded
+4. **Optional Components**: Use only the providers you need
+5. **Extensible**: Easy to add new integrations
+
+## High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    YARNNN Agents Framework                   │
-│                                                              │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │              Your Custom Agent                     │    │
-│  │  (KnowledgeAgent, ContentAgent, CodeAgent, etc.)  │    │
-│  └────────────────────────────────────────────────────┘    │
-│                         ↓                                    │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │                   BaseAgent                        │    │
-│  │  - Autonomous operation loop                       │    │
-│  │  - Tool use orchestration                          │    │
-│  │  - Error handling & retry                          │    │
-│  └────────────────────────────────────────────────────┘    │
-│          ↓                              ↓                   │
-│  ┌──────────────┐             ┌──────────────────┐         │
-│  │ MemoryLayer  │             │ GovernanceLayer  │         │
-│  │              │             │                  │         │
-│  │ - Query      │             │ - Propose        │         │
-│  │ - Retrieve   │             │ - Monitor        │         │
-│  │ - Traverse   │             │ - Approve        │         │
-│  └──────────────┘             └──────────────────┘         │
-│          ↓                              ↓                   │
-│  ┌─────────────────────────────────────────────────┐       │
-│  │            YARNNN Client                        │       │
-│  │  - API/MCP integration                          │       │
-│  │  - Request/response handling                    │       │
-│  │  - Authentication                               │       │
-│  └─────────────────────────────────────────────────┘       │
-└──────────────────────────────────────────────────────────┘
-                         ↓
-        ┌────────────────────────────────┐
-        │      External Systems           │
-        │                                 │
-        │  ┌──────────────────────────┐  │
-        │  │   Claude (Anthropic)     │  │
-        │  │  - Reasoning             │  │
-        │  │  - Tool calling          │  │
-        │  │  - Session memory        │  │
-        │  └──────────────────────────┘  │
-        │             ↓                   │
-        │  ┌──────────────────────────┐  │
-        │  │   YARNNN Substrate       │  │
-        │  │  - Long-term memory      │  │
-        │  │  - Governed knowledge    │  │
-        │  │  - Versioning            │  │
-        │  │  - Timeline/events       │  │
-        │  └──────────────────────────┘  │
-        └─────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│      Your Custom Agent                  │
+│   (KnowledgeAgent, ContentAgent, etc.)  │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│       BaseAgent (Generic Core)          │
+│  • Agent identity & sessions            │
+│  • Claude integration                   │
+│  • Provider orchestration               │
+└─────────────────────────────────────────┘
+                  ↓
+┌──────────────┬─────────────┬────────────┐
+│ Memory       │ Governance  │ Tasks      │
+│ Provider     │ Provider    │ Provider   │
+│ (Abstract)   │ (Abstract)  │ (Abstract) │
+└──────────────┴─────────────┴────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│      Pluggable Integrations             │
+│  • YARNNN (memory + governance)         │
+│  • Notion (memory)                      │
+│  • GitHub (tasks)                       │
+│  • Custom (your service)                │
+└─────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### 1. BaseAgent
+### 1. BaseAgent (`claude_agent_sdk/base.py`)
 
-Foundation for all agents providing:
+Generic foundation for all agents. Completely provider-agnostic.
 
-**Responsibilities:**
-- Claude SDK integration for reasoning
-- Tool use orchestration
-- Autonomous operation loop
+**Key Features:**
+- Agent identity management (persistent `agent_id`)
+- Session creation and tracking
+- Claude API integration
+- Provider orchestration
 - Error handling and retry logic
-- Logging and observability
 
-**Key Methods:**
+**Usage:**
 ```python
-async def execute(task: str) -> Any:
-    """Execute a single task (implemented by subclass)"""
+from claude_agent_sdk import BaseAgent
 
-async def reason(task: str, context: str) -> Response:
-    """Use Claude to reason about task with context"""
+class MyAgent(BaseAgent):
+    async def execute(self, task: str):
+        # Your agent logic
+        pass
 
-async def autonomous_loop(tasks: List[str]) -> List[Any]:
-    """Execute multiple tasks autonomously"""
-```
-
-**Configuration:**
-- Model selection (Claude 3.5 Sonnet by default)
-- Auto-approval settings
-- Confidence thresholds
-- Retry limits
-
-### 2. MemoryLayer
-
-High-level interface to YARNNN substrate for memory operations.
-
-**Responsibilities:**
-- Semantic querying
-- Context retrieval
-- Anchor-based organization
-- Relationship traversal (future)
-
-**Key Methods:**
-```python
-async def query(query: str, limit: int) -> str:
-    """Semantic search across substrate"""
-
-async def get_anchor(anchor: str) -> str:
-    """Get all knowledge under a category"""
-
-async def get_all_blocks() -> List[Block]:
-    """Get all building blocks"""
-
-async def summarize_substrate() -> str:
-    """Get high-level summary"""
-```
-
-**Memory Operations:**
-- **Query**: Semantic search for relevant context
-- **Retrieve**: Get specific blocks/concepts
-- **Traverse**: Navigate relationships
-- **Summarize**: Get overview statistics
-
-### 3. GovernanceLayer
-
-Interface to YARNNN governance for change management.
-
-**Responsibilities:**
-- Proposal creation
-- Approval monitoring
-- Auto-approval logic (if enabled)
-- Change tracking
-
-**Key Methods:**
-```python
-async def propose(
-    blocks: List[Dict],
-    context_items: List[str],
-    reasoning: str,
-    confidence: float
-) -> Proposal:
-    """Propose substrate changes"""
-
-async def wait_for_approval(proposal_id: str) -> bool:
-    """Wait for human approval"""
-
-async def get_status(proposal_id: str) -> Dict:
-    """Check proposal status"""
-```
-
-**Governance Workflow:**
-1. Agent creates proposal with ops (block creates, etc.)
-2. Proposal enters governance queue
-3. Human reviews in YARNNN UI
-4. Approve/reject decision
-5. If approved, committed to substrate
-6. Agent notified of outcome
-
-### 4. YarnnnClient
-
-Low-level client for YARNNN API/MCP integration.
-
-**Responsibilities:**
-- HTTP request/response handling
-- Authentication
-- Error handling
-- Request retries
-
-**Key Methods:**
-```python
-async def query_substrate(basket_id, query) -> List[Dict]:
-    """Query substrate via API"""
-
-async def create_proposal(basket_id, ops) -> Proposal:
-    """Create governance proposal"""
-
-async def get_proposal(proposal_id) -> Proposal:
-    """Get proposal status"""
-
-async def create_dump(basket_id, text_dump) -> Dict:
-    """Create raw dump"""
-```
-
-**Integration Modes:**
-- **API Mode** (default): HTTP requests to YARNNN API
-- **MCP Mode** (future): Model Context Protocol integration
-
-### 5. Claude Tools
-
-Tool definitions for Claude to interact with YARNNN.
-
-**Available Tools:**
-
-**`query_memory`**
-- Search substrate for relevant context
-- Parameters: query, limit
-- Returns: Formatted context string
-
-**`propose_to_memory`**
-- Propose substrate changes
-- Parameters: blocks, context_items, reasoning, confidence
-- Returns: Proposal ID and status
-
-**`check_proposal_status`**
-- Check if proposal approved
-- Parameters: proposal_id
-- Returns: Current status
-
-**`get_anchor_context`**
-- Get knowledge under anchor
-- Parameters: anchor
-- Returns: Formatted anchor knowledge
-
-## Data Flow
-
-### Request Flow
-
-```
-User Request
-    ↓
-Agent.execute(task)
-    ↓
-1. Query Memory
-   MemoryLayer.query(task)
-       ↓
-   YarnnnClient.query_substrate(basket_id, query)
-       ↓
-   YARNNN API /api/baskets/{id}/query
-       ↓
-   Context returned to agent
-    ↓
-2. Reason with Claude
-   BaseAgent.reason(task, context)
-       ↓
-   Claude API with tools
-       ↓
-   Tool use: propose_to_memory
-    ↓
-3. Propose Changes
-   GovernanceLayer.propose(blocks, reasoning)
-       ↓
-   YarnnnClient.create_proposal(basket_id, ops)
-       ↓
-   YARNNN API /api/baskets/{id}/proposals
-       ↓
-   Proposal created in governance queue
-    ↓
-4. Wait for Approval (optional)
-   GovernanceLayer.wait_for_approval(proposal_id)
-       ↓
-   Poll YARNNN API /api/proposals/{id}
-       ↓
-   Return approved/rejected status
-```
-
-### Governance Flow
-
-```
-Agent Proposes Changes
-    ↓
-Proposal Created (PROPOSED status)
-    ↓
-Appears in YARNNN UI
-    - /workspace/change-requests (workspace-level)
-    - /baskets/{id}/change-requests (basket-level)
-    ↓
-Human Reviews Proposal
-    - Views ops (block creates, etc.)
-    - Sees validation report
-    - Checks confidence score
-    - Reads reasoning
-    ↓
-Human Decision
-    ↓           ↓
-Approve      Reject
-    ↓           ↓
-APPROVED    REJECTED
-    ↓           ↓
-Commit      Archive
-to Substrate
-    ↓
-Timeline Event Emitted
-    ↓
-Agent Notified
-    ↓
-Agent Continues
-```
-
-## Memory Architecture
-
-### Dual-Layer Memory
-
-**Claude's Layer (Fast):**
-- Session continuity across conversation
-- Working context for reasoning
-- Tool use history
-- Latency: Milliseconds
-
-**YARNNN's Layer (Deep):**
-- Long-term governed knowledge
-- Versioned building blocks
-- Semantic relationships
-- Latency: 2-30 seconds (acceptable for durability)
-
-**Why Separation?**
-- Claude excels at fast reasoning with session context
-- YARNNN excels at durable, governed, evolving knowledge
-- Agents get best of both: fast + deep memory
-
-### Memory Query Patterns
-
-**1. Semantic Search**
-```python
-context = await agent.memory.query(
-    "What do we know about AI governance?"
-)
-```
-Uses vector embeddings to find relevant blocks.
-
-**2. Anchor-Based Retrieval**
-```python
-ethics_knowledge = await agent.memory.get_anchor("AI Ethics")
-```
-Gets all blocks under a specific category.
-
-**3. Concept Traversal**
-```python
-related = await agent.memory.find_related(
-    "Machine Learning",
-    depth=2
-)
-```
-Navigates relationship graph.
-
-**4. Substrate Summary**
-```python
-summary = await agent.memory.summarize_substrate()
-```
-High-level overview of knowledge state.
-
-## Governance Architecture
-
-### Proposal Structure
-
-```typescript
-{
-  id: "prop-xxx",
-  basket_id: "basket-123",
-  status: "PROPOSED",  // DRAFT, PROPOSED, UNDER_REVIEW, APPROVED, REJECTED, COMMITTED
-  ops: [
-    {
-      type: "block_create",
-      data: {
-        title: "New Insight",
-        body: "Details...",
-        semantic_type: "knowledge",
-        confidence: 0.85
-      }
-    },
-    {
-      type: "context_item_create",
-      data: {
-        name: "AI Ethics",
-        context_type: "concept"
-      }
-    }
-  ],
-  validation_report: {
-    confidence: 0.85,
-    reasoning: "Research findings from today",
-    origin: "agent",
-    ops_count: 2
-  }
-}
-```
-
-### Auto-Approval Logic
-
-If enabled (not recommended for production):
-
-```python
-if agent.auto_approve and confidence >= agent.confidence_threshold:
-    # Proposal auto-approved
-    # Note: Backend support required
-```
-
-**Confidence Scoring:**
-- `0.9-1.0`: Facts, established knowledge, high-quality sources
-- `0.7-0.9`: Well-researched insights, reasonable confidence
-- `0.5-0.7`: Preliminary findings, needs validation
-- `<0.5`: Speculative, uncertain
-
-## Security Model
-
-### Authentication
-
-**Agent Authentication:**
-```python
-YarnnnClient(
-    api_url="http://yarnnn-api:3000",
-    api_key="agent_key_xxx",  # Agent-specific API key
-    workspace_id="workspace_123"
+agent = MyAgent(
+    agent_id="my_bot_001",
+    memory=MemoryProvider(...),
+    anthropic_api_key="sk-ant-..."
 )
 ```
 
-**Headers:**
-```
-Authorization: Bearer agent_key_xxx
-Content-Type: application/json
-```
+### 2. Provider Interfaces (`claude_agent_sdk/interfaces.py`)
 
-### Authorization
+Abstract base classes defining contracts for integrations:
 
-**Workspace Isolation:**
-- Agents scoped to specific workspace
-- Can only access baskets within workspace
-- RLS policies enforce boundaries
+- **MemoryProvider**: Long-term memory (query, get_all, summarize)
+- **GovernanceProvider**: Approval workflows (propose, wait_for_approval)
+- **TaskProvider**: Task management (get_pending_tasks, update_status)
 
-**API Key Permissions:**
-- Read: Query substrate
-- Write: Create proposals (not direct substrate writes)
-- Governance: Submit proposals only (not approve)
+**Usage:**
+```python
+from claude_agent_sdk.interfaces import MemoryProvider
 
-### Safety Mechanisms
-
-1. **Governance Required**: Agents can't directly modify substrate
-2. **Human Approval**: Changes require human review
-3. **Confidence Scoring**: Track agent certainty
-4. **Auditability**: Full timeline of operations
-5. **Versioning**: All changes tracked
-
-## Scalability
-
-### Horizontal Scaling
-
-```yaml
-# Deploy multiple agent instances
-services:
-  knowledge-agent-1:
-    image: yarnnn-agent
-    environment:
-      - BASKET_ID=basket-1
-
-  knowledge-agent-2:
-    image: yarnnn-agent
-    environment:
-      - BASKET_ID=basket-2
+class MyMemory(MemoryProvider):
+    async def query(self, query, filters, limit):
+        # Your implementation
+        pass
 ```
 
-### Performance Characteristics
+### 3. Session Management (`claude_agent_sdk/session.py`)
 
-**Agent Operations:**
-- Query substrate: 100-500ms
-- Create proposal: 200-800ms
-- Wait for approval: Variable (human-dependent)
+Tracks agent execution with full context:
 
-**Throughput:**
-- Queries: ~10-50/second (limited by YARNNN API)
-- Proposals: ~1-10/minute (governance bottleneck)
+- Session ID and agent ID
+- Claude conversation ID (for resumption)
+- Tasks completed, proposals created
+- Error tracking
+- Metadata
 
-**Resource Usage:**
-- Memory: ~100-500MB per agent
-- CPU: Low (mostly waiting for APIs)
+**Agent vs Session:**
+- **Agent** = Persistent entity (e.g., "Research Bot")
+- **Session** = Each execution instance
+
+```
+Agent: research_bot_001
+  ├─ Session 1 (Monday): 3 tasks, 2 proposals
+  ├─ Session 2 (Tuesday): 5 tasks, 1 proposal
+  └─ Session 3 (Wednesday): 2 tasks, 0 proposals
+```
+
+### 4. Integrations (`claude_agent_sdk/integrations/`)
+
+Pluggable implementations of provider interfaces.
+
+#### YARNNN Integration
+
+**Location:** `claude_agent_sdk/integrations/yarnnn/`
+
+Provides governed long-term memory:
+
+```python
+from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
+
+memory = YarnnnMemory(basket_id="basket_123")
+governance = YarnnnGovernance(basket_id="basket_123")
+
+agent = MyAgent(memory=memory, governance=governance)
+```
+
+**Components:**
+- `client.py`: HTTP client for YARNNN API
+- `memory.py`: Implements MemoryProvider
+- `governance.py`: Implements GovernanceProvider
+- `tools.py`: Claude tools for YARNNN
+
+## Execution Flow
+
+```
+1. User calls agent.execute("task")
+   ↓
+2. BaseAgent creates/resumes session
+   ↓
+3. Agent.execute() implementation:
+   ├─ Query memory (if available)
+   ├─ Reason with Claude
+   ├─ Propose changes (if governance available)
+   └─ Return result
+   ↓
+4. Session tracks:
+   ├─ Tasks completed
+   ├─ Proposals created
+   └─ Errors (if any)
+   ↓
+5. Result returned to user
+```
+
+## Design Patterns
+
+### 1. Dependency Injection
+
+```python
+# Providers injected, not hardcoded
+memory = YarnnnMemory(...)
+agent = MyAgent(memory=memory)  # ✅ Flexible
+
+# NOT hardcoded
+class MyAgent(BaseAgent):
+    def __init__(self):
+        self.memory = YarnnnMemory(...)  # ❌ Tight coupling
+```
+
+### 2. Optional Providers
+
+```python
+# Memory only (read-only agent)
+agent = MyAgent(memory=YarnnnMemory(...), governance=None)
+
+# Governance only (stateless approval agent)
+agent = MyAgent(memory=None, governance=YarnnnGovernance(...))
+
+# All providers
+agent = MyAgent(
+    memory=YarnnnMemory(...),
+    governance=YarnnnGovernance(...),
+    tasks=TaskProvider(...)
+)
+```
+
+### 3. Multiple Agents
+
+```python
+# Agent 1: Research
+research_agent = KnowledgeAgent(
+    agent_id="research_bot",
+    memory=shared_memory
+)
+
+# Agent 2: Content
+content_agent = ContentAgent(
+    agent_id="content_bot",
+    memory=shared_memory  # Same memory!
+)
+
+# Agents can collaborate via shared memory
+await research_agent.execute("Research AI trends")
+await content_agent.execute("Write blog about AI trends")
+```
+
+## Data Models
+
+All data models use Pydantic for type safety:
+
+- **Context**: Memory query results
+- **Change**: Proposed modifications
+- **Proposal**: Governance proposals
+- **Task**: Work items for agents
+- **AgentSession**: Session metadata
 
 ## Extension Points
 
-### Custom Agents
+### Create Custom Agents
 
 ```python
-class MyCustomAgent(BaseAgent):
-    def __init__(self, basket_id, **kwargs):
-        super().__init__(basket_id, **kwargs)
-        self.custom_config = self._load_config()
+from claude_agent_sdk import BaseAgent
 
+class CustomAgent(BaseAgent):
     async def execute(self, task: str):
-        # Custom implementation
+        # Your logic here
         pass
-
-    def _get_default_system_prompt(self):
-        return "Your custom system prompt"
 ```
 
-### Custom Tools
+### Create Custom Providers
 
 ```python
-def get_custom_tools():
-    return [
-        {
-            "name": "search_web",
-            "description": "Search the web",
-            "input_schema": {...},
-            "function": search_web_func
-        }
-    ]
+from claude_agent_sdk.interfaces import MemoryProvider
 
-agent = BaseAgent(basket_id="...")
-agent.yarnnn_tools.extend(get_custom_tools())
-```
-
-### Custom Memory Operations
-
-```python
-class EnhancedMemoryLayer(MemoryLayer):
-    async def smart_query(self, query: str):
-        # Custom query logic
+class NotionMemory(MemoryProvider):
+    async def query(self, query, filters, limit):
+        # Your Notion integration
         pass
-
-agent = BaseAgent(basket_id="...")
-agent.memory = EnhancedMemoryLayer(agent.yarnnn, agent.basket_id)
 ```
 
-## Observability
+## Security
 
-### Logging
+- API keys stored in environment variables
+- Proposal-based governance (changes require approval)
+- Provider isolation (errors don't cascade)
+- Complete audit trail via session tracking
 
-```python
-import logging
+## Performance
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+- Async I/O throughout (non-blocking)
+- Provider-level caching
+- Efficient resource utilization
+- Session persistence for recovery
 
-# Agent logs:
-# - Task execution start/end
-# - Memory queries
-# - Proposals created
-# - Approvals received
-# - Errors and retries
-```
+## Further Reading
 
-### Metrics (Future)
-
-- Agent operation latency
-- Proposal approval rate
-- Memory query performance
-- Error rate
-- Agent uptime
-
-### Timeline Integration
-
-All agent operations visible in YARNNN timeline:
-- Query events
-- Proposal events
-- Approval events
-- Execution events
-
-## Future Enhancements
-
-### Phase 1: Execution Layer
-- Claude Computer Use integration
-- Multi-step workflows
-- Action execution & monitoring
-
-### Phase 2: Multi-Agent Coordination
-- Agent-to-agent communication
-- Shared knowledge protocols
-- Conflict resolution
-
-### Phase 3: Advanced Memory
-- Relationship traversal
-- Temporal queries
-- Memory consolidation
-
-### Phase 4: Production Readiness
-- Health checks
-- Graceful shutdown
-- State persistence
-- Monitoring dashboards
+- **Quick Start**: [docs/QUICK_START.md](./QUICK_START.md)
+- **Migration Guide**: [MIGRATION.md](../MIGRATION.md)
+- **Examples**: [examples/](../examples/)
+- **YARNNN Integration**: Documentation coming soon
 
 ---
 
-**This architecture provides a foundation for governed autonomous agents that operate safely, transparently, and effectively over extended time periods.**
+For detailed technical architecture, see the old documentation: [architecture_old.md](./architecture_old.md)
