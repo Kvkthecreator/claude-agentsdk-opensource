@@ -37,7 +37,17 @@ class BaseAgent(ABC):
         from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
 
         class MyAgent(BaseAgent):
-            async def execute(self, task: str) -> str:
+            async def execute(
+                self,
+                task: str,
+                task_id: Optional[str] = None,
+                task_metadata: Optional[Dict[str, Any]] = None,
+                **kwargs
+            ) -> str:
+                # Start session with optional task linking
+                if not self.current_session:
+                    self.current_session = self._start_session(task_id, task_metadata)
+
                 # 1. Query memory for context
                 if self.memory:
                     contexts = await self.memory.query(task)
@@ -60,7 +70,12 @@ class BaseAgent(ABC):
             anthropic_api_key="sk-ant-..."
         )
 
-        result = await agent.execute("Research AI governance")
+        # Execute with optional task linking
+        result = await agent.execute(
+            "Research AI governance",
+            task_id="work_session_123",
+            task_metadata={"workspace_id": "ws_001", "basket_id": "basket_abc"}
+        )
     """
 
     def __init__(
@@ -153,11 +168,26 @@ class BaseAgent(ABC):
         self.logger = logging.getLogger(f"{self.__class__.__name__}[{self.agent_id}]")
         self.logger.info(f"Initialized {self.agent_name} (type: {self.agent_type})")
 
-    def _start_session(self) -> AgentSession:
-        """Start a new agent session"""
+    def _start_session(
+        self,
+        task_id: Optional[str] = None,
+        task_metadata: Optional[Dict[str, Any]] = None
+    ) -> AgentSession:
+        """
+        Start a new agent session.
+
+        Args:
+            task_id: Optional external task ID (e.g., YARNNN work_session_id)
+            task_metadata: Optional task-specific metadata (e.g., workspace_id, basket_id)
+
+        Returns:
+            New AgentSession instance
+        """
         session = AgentSession(
             agent_id=self.agent_id,
             claude_session_id=self._claude_session_id,
+            task_id=task_id,
+            task_metadata=task_metadata or {},
             metadata={
                 "agent_type": self.agent_type,
                 "agent_name": self.agent_name,
@@ -165,7 +195,10 @@ class BaseAgent(ABC):
                 **self.metadata
             }
         )
-        self.logger.info(f"Started new session: {session.id}")
+        self.logger.info(
+            f"Started new session: {session.id}"
+            + (f" (linked to task: {task_id})" if task_id else "")
+        )
         return session
 
     async def reason(
@@ -272,16 +305,28 @@ Your capabilities depend on the providers configured:
 Be helpful, accurate, and thoughtful in your responses."""
 
     @abstractmethod
-    async def execute(self, task: str, **kwargs) -> Any:
+    async def execute(
+        self,
+        task: str,
+        task_id: Optional[str] = None,
+        task_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Any:
         """
         Execute a task (must be implemented by subclasses).
 
         Args:
             task: Task description
+            task_id: Optional external task ID for linking to work management systems
+            task_metadata: Optional task-specific metadata (workspace_id, basket_id, etc.)
             **kwargs: Additional task-specific parameters
 
         Returns:
             Task result
+
+        Note:
+            When implementing this method in subclasses, use _start_session(task_id, task_metadata)
+            to properly link the AgentSession to external task systems.
 
         Raises:
             NotImplementedError: Must be implemented by subclass

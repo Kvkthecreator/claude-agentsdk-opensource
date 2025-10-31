@@ -21,6 +21,8 @@ class AgentSession(BaseModel):
         id: Unique session identifier
         agent_id: Persistent agent identifier
         claude_session_id: Claude conversation session ID (from SDK)
+        task_id: Optional link to external task system (e.g., work session ID)
+        task_metadata: Pass-through metadata from task system
         started_at: Session start timestamp
         ended_at: Session end timestamp (None if active)
         status: Session status
@@ -30,6 +32,11 @@ class AgentSession(BaseModel):
     id: str = Field(default_factory=lambda: f"session_{uuid.uuid4().hex[:12]}")
     agent_id: str
     claude_session_id: Optional[str] = None
+
+    # Task linking (optional - for integration with task systems like YARNNN)
+    task_id: Optional[str] = None
+    task_metadata: Dict[str, Any] = Field(default_factory=dict)
+
     started_at: datetime = Field(default_factory=datetime.utcnow)
     ended_at: Optional[datetime] = None
     status: str = "active"  # active, completed, failed

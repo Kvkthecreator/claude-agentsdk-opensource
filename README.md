@@ -2,6 +2,9 @@
 
 **Generic framework for building autonomous AI agents with pluggable integrations**
 
+> 🔌 **Truly Generic**: Use in-memory storage, YARNNN, Notion, or build your own providers.
+> No vendor lock-in. Works standalone or with any backend.
+
 Build agents that can work for extended periods (days, weeks) with long-term memory, governance workflows, and seamless integration with external services. This SDK provides a clean, extensible architecture for creating production-ready autonomous agents.
 
 ## Why Claude Agent SDK?
@@ -73,13 +76,64 @@ Workspace
 pip install -r requirements.txt
 ```
 
-### Basic Usage (with YARNNN Integration)
+### 1. Minimal Agent (No Backend Required)
+
+Try the SDK immediately with in-memory storage - only needs Claude API key:
+
+```python
+from claude_agent_sdk import BaseAgent
+from claude_agent_sdk.integrations.memory import InMemoryProvider
+
+
+class SimpleAgent(BaseAgent):
+    async def execute(self, task: str, **kwargs):
+        # Start session
+        if not self.current_session:
+            self.current_session = self._start_session()
+
+        # Query memory
+        contexts = await self.memory.query(task, limit=5)
+        context_str = "\n".join([c.content for c in contexts])
+
+        # Reason with Claude
+        response = await self.reason(task, context=context_str)
+
+        return response
+
+
+# Create agent with in-memory provider
+memory = InMemoryProvider()
+memory.add("Python is a high-level programming language")
+memory.add("Rust focuses on safety and performance")
+
+agent = SimpleAgent(
+    agent_id="demo_agent",
+    memory=memory,
+    anthropic_api_key="sk-ant-..."
+)
+
+# Execute
+result = await agent.execute("Tell me about Python")
+```
+
+**Try it now**: `python examples/00_minimal_agent.py`
+
+### 2. With Persistent Memory (YARNNN)
+
+For production use with durable memory and governance:
 
 ```python
 from claude_agent_sdk import BaseAgent
 from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
 
-# Setup providers
+
+class MyAgent(BaseAgent):
+    async def execute(self, task: str, **kwargs):
+        # Same implementation as above
+        pass
+
+
+# YARNNN providers for persistent storage
 memory = YarnnnMemory(
     basket_id="basket_123",
     api_key="ynk_...",
@@ -92,30 +146,45 @@ governance = YarnnnGovernance(
     workspace_id="ws_123"
 )
 
-# Create custom agent
-class MyAgent(BaseAgent):
-    async def execute(self, task: str):
-        # Query memory
-        contexts = await self.memory.query(task)
-        context_str = "\\n".join([c.content for c in contexts])
-
-        # Reason with Claude
-        response = await self.reason(task, context=context_str)
-
-        return response
-
-# Initialize agent
 agent = MyAgent(
-    agent_id="my_research_bot",
-    agent_type="knowledge",
+    agent_id="production_agent",
     memory=memory,
     governance=governance,
     anthropic_api_key="sk-ant-..."
 )
 
-# Execute tasks
 result = await agent.execute("Research AI governance")
 ```
+
+**Try it**: `python examples/01_with_yarnnn.py`
+
+### 3. Build Your Own Provider
+
+Create custom providers for your backend:
+
+```python
+from claude_agent_sdk.interfaces import MemoryProvider, Context
+
+
+class MyCustomProvider(MemoryProvider):
+    async def query(self, query: str, **kwargs) -> List[Context]:
+        # Connect to your database, API, or service
+        results = await my_backend.search(query)
+        return [Context(content=r.text, metadata=r.meta) for r in results]
+
+    async def store(self, context: Context) -> str:
+        return await my_backend.save(context)
+
+
+# Use your custom provider
+agent = MyAgent(
+    agent_id="custom_agent",
+    memory=MyCustomProvider(),
+    anthropic_api_key="sk-ant-..."
+)
+```
+
+**Learn more**: [Building Providers Guide](docs/BUILDING_PROVIDERS.md)
 
 ## Features
 
@@ -267,11 +336,28 @@ class TaskProvider(ABC):
         """Create new task"""
 ```
 
-## Available Integrations
+## Available Providers
+
+### InMemory (Included)
+
+Simple in-memory storage - no external dependencies:
+
+```python
+from claude_agent_sdk.integrations.memory import InMemoryProvider
+
+memory = InMemoryProvider()
+memory.add("Your knowledge here")
+memory.add("More context", metadata={"topic": "AI"})
+
+# Query
+results = await memory.query("AI context")
+```
+
+**Perfect for**: Prototyping, demos, testing, learning the SDK
 
 ### YARNNN (Included)
 
-YARNNN provides governed long-term memory with human approval workflows.
+Governed long-term memory with human approval workflows:
 
 ```python
 from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
@@ -291,14 +377,20 @@ governance = YarnnnGovernance(
 )
 ```
 
+**Perfect for**: Production agents, durable memory, governed operations
+
 See [YARNNN Integration Guide](./docs/integrations/yarnnn.md) for details.
 
-### Coming Soon
+### Build Your Own
+
+Create providers for any backend - see [Building Providers Guide](docs/BUILDING_PROVIDERS.md):
 
 - **Notion**: Database-based memory
-- **GitHub**: Repository-based tasks and memory
-- **Pinecone/Weaviate**: Vector store memory
-- **Slack**: Approval workflow integration
+- **GitHub**: Repository-based tasks
+- **PostgreSQL**: Database with pgvector
+- **Pinecone/Weaviate**: Vector stores
+- **File System**: JSON file storage
+- **Any API**: Custom integration
 
 ## Example Agents
 
@@ -339,20 +431,23 @@ claude-agent-sdk/
 │   ├── interfaces.py           # Provider interfaces
 │   ├── session.py              # Session management
 │   └── integrations/           # Provider implementations
+│       ├── memory/             # In-memory provider
+│       │   ├── __init__.py
+│       │   └── simple.py       # InMemoryProvider
 │       └── yarnnn/             # YARNNN integration
 │           ├── client.py       # HTTP client
 │           ├── memory.py       # MemoryProvider impl
 │           ├── governance.py   # GovernanceProvider impl
 │           └── tools.py        # Claude tools
 ├── examples/                    # Example agents
-│   ├── simple_usage.py         # Quick examples
+│   ├── 00_minimal_agent.py     # No backend required
+│   ├── 01_with_yarnnn.py       # YARNNN integration examples
 │   └── knowledge-agent/        # Full knowledge agent
 ├── docs/                        # Documentation
 │   ├── architecture.md
-│   ├── creating-agents.md
-│   ├── creating-integrations.md
-│   └── integrations/
-│       └── yarnnn.md
+│   ├── BUILDING_PROVIDERS.md   # Create custom providers
+│   ├── session-linking.md      # Work management integration
+│   └── QUICK_START.md
 └── README.md
 ```
 
@@ -473,8 +568,10 @@ See [Creating Integrations](./docs/creating-integrations.md) for detailed guide.
 - [x] Generic BaseAgent architecture
 - [x] Provider interfaces (Memory, Governance, Task)
 - [x] Agent identity and session tracking
+- [x] InMemoryProvider (no dependencies)
 - [x] YARNNN integration
 - [x] Knowledge Agent example
+- [x] Provider building guide
 
 ### Phase 2: Additional Integrations (Weeks 3-4)
 - [ ] Notion memory provider
