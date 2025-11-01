@@ -27,6 +27,7 @@ Example:
 from .base import BaseAgent
 from .interfaces import MemoryProvider, GovernanceProvider, TaskProvider
 from .session import AgentSession
+from .subagents import SubagentDefinition, SubagentRegistry
 
 __version__ = "0.1.0"
 
@@ -36,4 +37,6 @@ __all__ = [
     "GovernanceProvider",
     "TaskProvider",
     "AgentSession",
+    "SubagentDefinition",
+    "SubagentRegistry",
 ]

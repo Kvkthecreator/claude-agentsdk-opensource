@@ -16,6 +16,7 @@ from anthropic import AsyncAnthropic
 
 from .interfaces import MemoryProvider, GovernanceProvider, TaskProvider
 from .session import AgentSession, generate_agent_id
+from .subagents import SubagentRegistry, SubagentDefinition, create_subagent_tool
 
 
 # Configure logging
@@ -164,6 +165,9 @@ class BaseAgent(ABC):
         # Metadata
         self.metadata = metadata or {}
 
+        # Subagent registry
+        self.subagents = SubagentRegistry(self)
+
         # Logger
         self.logger = logging.getLogger(f"{self.__class__.__name__}[{self.agent_id}]")
         self.logger.info(f"Initialized {self.agent_name} (type: {self.agent_type})")
@@ -295,14 +299,60 @@ class BaseAgent(ABC):
             System prompt string or None
         """
         # Generic prompt - subclasses should override
-        return f"""You are an autonomous agent (ID: {self.agent_id}, Type: {self.agent_type}).
+        prompt = f"""You are an autonomous agent (ID: {self.agent_id}, Type: {self.agent_type}).
 
 Your capabilities depend on the providers configured:
 - Memory: {"Available" if self.memory is not None else "Not configured"}
 - Governance: {"Available" if self.governance is not None else "Not configured"}
-- Tasks: {"Available" if self.tasks is not None else "Not configured"}
+- Tasks: {"Available" if self.tasks is not None else "Not configured"}"""
 
-Be helpful, accurate, and thoughtful in your responses."""
+        # Add subagent information if any subagents are registered
+        if self.subagents.list_subagents():
+            prompt += "\n" + self.subagents.get_delegation_prompt()
+
+        prompt += "\n\nBe helpful, accurate, and thoughtful in your responses."
+
+        return prompt
+
+    async def _execute_subagent(
+        self,
+        subagent: SubagentDefinition,
+        task: str,
+        context: Optional[str] = None,
+        **kwargs
+    ) -> Any:
+        """
+        Execute a subagent task.
+
+        Args:
+            subagent: Subagent definition
+            task: Task for subagent
+            context: Additional context
+            **kwargs: Additional arguments
+
+        Returns:
+            Subagent's response
+        """
+        # Use subagent's system prompt
+        system_prompt = subagent.system_prompt
+
+        # Use subagent's model if specified, otherwise use parent's
+        model = subagent.model or self.model
+
+        # Filter tools if subagent has restrictions
+        tools = kwargs.get("tools")
+        if subagent.tools and tools:
+            # Only provide tools that subagent is allowed to use
+            tools = [t for t in tools if t["name"] in subagent.tools]
+
+        # Call reason with subagent configuration
+        return await self.reason(
+            task=task,
+            context=context,
+            system_prompt=system_prompt,
+            tools=tools,
+            max_tokens=kwargs.get("max_tokens", 4096)
+        )
 
     @abstractmethod
     async def execute(
