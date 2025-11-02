@@ -56,10 +56,12 @@ class YarnnnClient:
     - Commit approved changes
 
     Usage:
+        # workspace_id is REQUIRED (user/tenant-specific)
+        # api_url and api_key can fall back to environment variables
         client = YarnnnClient(
-            api_url="http://localhost:3000",
-            api_key="your_key",
-            workspace_id="your_workspace"
+            workspace_id="ws_user123",  # Required from request context
+            api_url="http://localhost:3000",  # Optional, uses YARNNN_API_URL env var if not provided
+            api_key="your_key"  # Optional, uses YARNNN_API_KEY env var if not provided
         )
 
         # Query substrate
@@ -81,29 +83,37 @@ class YarnnnClient:
 
     def __init__(
         self,
+        workspace_id: str,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        workspace_id: Optional[str] = None,
         timeout: int = 30
     ):
         """
         Initialize YARNNN client
 
         Args:
+            workspace_id: Workspace ID (REQUIRED - user/tenant-specific)
             api_url: YARNNN API base URL (default: from YARNNN_API_URL env)
             api_key: YARNNN API key (default: from YARNNN_API_KEY env)
-            workspace_id: Workspace ID (default: from YARNNN_WORKSPACE_ID env)
             timeout: Request timeout in seconds
+
+        Raises:
+            ValueError: If workspace_id is not provided or if api_key cannot be determined
+
+        Note:
+            workspace_id must be explicitly provided as it's user/tenant-specific.
+            Service-level credentials (api_url, api_key) can fall back to environment variables.
         """
+        if not workspace_id:
+            raise ValueError("workspace_id is required and must be explicitly provided")
+
+        self.workspace_id = workspace_id
         self.api_url = api_url or os.getenv("YARNNN_API_URL", "http://localhost:3000")
         self.api_key = api_key or os.getenv("YARNNN_API_KEY")
-        self.workspace_id = workspace_id or os.getenv("YARNNN_WORKSPACE_ID")
         self.timeout = timeout
 
         if not self.api_key:
-            raise ValueError("YARNNN_API_KEY must be set")
-        if not self.workspace_id:
-            raise ValueError("YARNNN_WORKSPACE_ID must be set")
+            raise ValueError("YARNNN_API_KEY must be set (via parameter or environment variable)")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get authorization headers"""

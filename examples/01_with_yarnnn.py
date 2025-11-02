@@ -20,18 +20,16 @@ async def example_1_simple_agent():
 
     # Initialize YARNNN providers
     memory = YarnnnMemory(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
         basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"),
         api_url=os.getenv("YARNNN_API_URL", "http://localhost:3000"),
-        api_key=os.getenv("YARNNN_API_KEY"),
-        workspace_id=os.getenv("YARNNN_WORKSPACE_ID")
-    )
+        api_key=os.getenv("YARNNN_API_KEY"))
 
     governance = YarnnnGovernance(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
         basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"),
         api_url=os.getenv("YARNNN_API_URL", "http://localhost:3000"),
-        api_key=os.getenv("YARNNN_API_KEY"),
-        workspace_id=os.getenv("YARNNN_WORKSPACE_ID")
-    )
+        api_key=os.getenv("YARNNN_API_KEY"))
 
     # Import the new KnowledgeAgent
     from knowledge-agent.agent_v2 import KnowledgeAgent
@@ -75,10 +73,12 @@ async def example_2_multiple_agents():
 
     # Shared memory provider
     shared_memory = YarnnnMemory(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
         basket_id=os.getenv("YARNNN_BASKET_ID", "basket_shared"),
     )
 
     shared_governance = YarnnnGovernance(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
         basket_id=os.getenv("YARNNN_BASKET_ID", "basket_shared"),
     )
 
@@ -124,8 +124,12 @@ async def example_3_session_resumption():
     print("Example 3: Session Resumption")
     print("=" * 60)
 
-    memory = YarnnnMemory(basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
-    governance = YarnnnGovernance(basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
+    memory = YarnnnMemory(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
+        basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
+    governance = YarnnnGovernance(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
+        basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
 
     from knowledge-agent.agent_v2 import KnowledgeAgent
 
@@ -192,7 +196,9 @@ async def example_4_readonly_agent():
             return response
 
     # Initialize with only memory (no governance)
-    memory_only = YarnnnMemory(basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
+    memory_only = YarnnnMemory(
+        workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
+        basket_id=os.getenv("YARNNN_BASKET_ID", "basket_demo"))
 
     agent = ReadOnlyAgent(
         agent_id="readonly_assistant",

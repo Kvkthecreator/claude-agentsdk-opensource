@@ -35,8 +35,12 @@ class KnowledgeAgent(BaseAgent):
     Usage:
         from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
 
-        memory = YarnnnMemory(basket_id="basket_123")
-        governance = YarnnnGovernance(basket_id="basket_123")
+        memory = YarnnnMemory(
+            workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
+            basket_id="basket_123")
+        governance = YarnnnGovernance(
+            workspace_id=os.getenv("YARNNN_WORKSPACE_ID"),
+            basket_id="basket_123")
 
         agent = KnowledgeAgent(
             agent_id="research_bot",

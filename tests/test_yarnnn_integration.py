@@ -23,10 +23,10 @@ class TestYarnnnMemory:
         """Test YARNNN memory initialization"""
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient'):
             memory = YarnnnMemory(
+                workspace_id="ws_001",
                 basket_id="basket_123",
                 api_url="https://test.yarnnn.com",
-                api_key="test_key",
-                workspace_id="ws_001"
+                api_key="test_key"
             )
 
             assert memory.basket_id == "basket_123"
@@ -36,7 +36,7 @@ class TestYarnnnMemory:
     async def test_query(self, mock_yarnnn_client):
         """Test querying YARNNN memory"""
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             results = await memory.query("AI governance")
 
@@ -49,7 +49,7 @@ class TestYarnnnMemory:
     async def test_query_with_filters(self, mock_yarnnn_client):
         """Test querying with filters"""
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             filters = {"anchor": "AI Ethics", "state": "mature"}
             results = await memory.query("governance", filters=filters, limit=10)
@@ -84,7 +84,7 @@ class TestYarnnnMemory:
         mock_yarnnn_client.get_blocks = AsyncMock(side_effect=mock_get_blocks)
 
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             results = await memory.get_all()
 
@@ -101,7 +101,7 @@ class TestYarnnnMemory:
         mock_yarnnn_client.get_blocks = AsyncMock(side_effect=mock_get_blocks)
 
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             await memory.get_all(
                 filters={"anchor": "AI Ethics", "state": "mature"},
@@ -135,7 +135,7 @@ class TestYarnnnMemory:
         mock_yarnnn_client.get_context_items = AsyncMock(side_effect=mock_get_context_items)
 
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             summary = await memory.summarize()
 
@@ -156,7 +156,7 @@ class TestYarnnnMemory:
         mock_yarnnn_client.get_blocks = AsyncMock(side_effect=mock_get_blocks)
 
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             results = await memory.get_anchor("AI Ethics")
 
@@ -177,7 +177,7 @@ class TestYarnnnMemory:
         mock_yarnnn_client.get_context_items = AsyncMock(side_effect=mock_get_context_items)
 
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient', return_value=mock_yarnnn_client):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             concepts = await memory.get_concepts()
 
@@ -189,7 +189,7 @@ class TestYarnnnMemory:
     def test_format_block(self):
         """Test block formatting"""
         with patch('claude_agent_sdk.integrations.yarnnn.memory.YarnnnClient'):
-            memory = YarnnnMemory(basket_id="basket_123")
+            memory = YarnnnMemory(workspace_id="ws_test", basket_id="basket_123")
 
             block = {
                 "title": "Test Title",
@@ -231,7 +231,7 @@ class TestYarnnnGovernance:
     async def test_propose(self, mock_yarnnn_client):
         """Test creating a proposal"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             changes = [
                 Change(
@@ -262,7 +262,7 @@ class TestYarnnnGovernance:
     async def test_propose_with_metadata(self, mock_yarnnn_client):
         """Test creating proposal with metadata"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             changes = [
                 Change(
@@ -294,7 +294,7 @@ class TestYarnnnGovernance:
     async def test_get_proposal_status(self, mock_yarnnn_client):
         """Test getting proposal status"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             proposal = await governance.get_proposal_status("prop_test_123")
 
@@ -311,7 +311,7 @@ class TestYarnnnGovernance:
         mock_yarnnn_client.wait_for_approval = AsyncMock(side_effect=mock_wait)
 
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             approved = await governance.wait_for_approval("prop_test_123", timeout=10)
 
@@ -327,7 +327,7 @@ class TestYarnnnGovernance:
         mock_yarnnn_client.wait_for_approval = AsyncMock(side_effect=mock_wait)
 
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             approved = await governance.wait_for_approval("prop_test_123")
 
@@ -336,7 +336,7 @@ class TestYarnnnGovernance:
     def test_map_status(self):
         """Test status mapping"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient'):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             assert governance._map_status("DRAFT") == "pending"
             assert governance._map_status("PROPOSED") == "pending"
@@ -379,7 +379,7 @@ class TestYarnnnGovernance:
     async def test_propose_insight(self, mock_yarnnn_client):
         """Test convenience method for proposing single insight"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             proposal = await governance.propose_insight(
                 title="AI Ethics",
@@ -405,7 +405,7 @@ class TestYarnnnGovernance:
     async def test_propose_concepts(self, mock_yarnnn_client):
         """Test convenience method for proposing concepts"""
         with patch('claude_agent_sdk.integrations.yarnnn.governance.YarnnnClient', return_value=mock_yarnnn_client):
-            governance = YarnnnGovernance(basket_id="basket_123")
+            governance = YarnnnGovernance(workspace_id="ws_test", basket_id="basket_123")
 
             concepts = ["Python", "JavaScript", "Rust"]
 
