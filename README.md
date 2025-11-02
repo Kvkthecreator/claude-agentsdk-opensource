@@ -186,6 +186,85 @@ agent = MyAgent(
 
 **Learn more**: [Building Providers Guide](docs/BUILDING_PROVIDERS.md)
 
+## Agent Archetypes
+
+The SDK includes three production-ready agent archetypes with specialized subagents:
+
+### ResearchAgent
+Continuous monitoring and deep-dive research capabilities.
+
+```python
+from claude_agent_sdk.archetypes import ResearchAgent
+
+agent = ResearchAgent(
+    memory=memory_provider,
+    anthropic_api_key="sk-ant-...",
+    monitoring_domains=["competitors", "market_trends"],
+    monitoring_frequency="daily"
+)
+
+# Continuous monitoring
+await agent.monitor()
+
+# Deep dive research
+result = await agent.deep_dive("AI agent market landscape")
+```
+
+**Subagents**: web_monitor, competitor_tracker, social_listener, analyst
+
+### ContentCreatorAgent
+Multi-platform content creation with brand voice consistency.
+
+```python
+from claude_agent_sdk.archetypes import ContentCreatorAgent
+
+agent = ContentCreatorAgent(
+    memory=memory_provider,
+    anthropic_api_key="sk-ant-...",
+    enabled_platforms=["twitter", "linkedin", "blog"]
+)
+
+# Create platform-specific content
+result = await agent.create(
+    platform="twitter",
+    topic="AI agent trends",
+    content_type="thread"
+)
+
+# Repurpose content across platforms
+result = await agent.repurpose(
+    source_content="My latest blog post...",
+    target_platforms=["twitter", "linkedin"]
+)
+```
+
+**Subagents**: twitter_writer, linkedin_writer, blog_writer, instagram_creator, repurposer
+
+### ReportingAgent
+Professional document generation with template learning.
+
+```python
+from claude_agent_sdk.archetypes import ReportingAgent
+
+agent = ReportingAgent(
+    memory=memory_provider,
+    anthropic_api_key="sk-ant-...",
+    template_library={"excel": "path/to/template.xlsx"},
+    default_formats=["pdf", "xlsx"]
+)
+
+# Generate reports
+result = await agent.generate(
+    report_type="monthly_metrics",
+    format="xlsx",
+    data=metrics_data
+)
+```
+
+**Subagents**: excel_specialist, presentation_designer, report_writer, data_analyst
+
+**See**: `examples/02_research_agent.py` for complete archetype usage.
+
 ## Features
 
 ### 1. Agent Identity & Sessions

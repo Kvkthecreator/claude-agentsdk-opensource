@@ -46,7 +46,7 @@ docs = [
     "mkdocs-material>=9.4.0",
 ]
 all = [
-    "yarnnn-agents[dev,docs]",
+    "claude-agent-sdk[dev,docs]",
 ]
 
 [project.urls]
@@ -58,11 +58,10 @@ Repository = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn"
 [tool.setuptools]
 packages = [
     "claude_agent_sdk",
+    "claude_agent_sdk.archetypes",
     "claude_agent_sdk.integrations",
+    "claude_agent_sdk.integrations.memory",
     "claude_agent_sdk.integrations.yarnnn",
-    # Backward compatibility (deprecated)
-    "yarnnn_agents",
-    "integrations.yarnnn"
 ]
 
 [tool.black]
