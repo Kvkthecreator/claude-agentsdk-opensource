@@ -79,13 +79,15 @@ class KnowledgeAgent(BaseAgent):
 async def main():
     # Setup YARNNN providers
     memory = YarnnnMemory(
-        basket_id="my_knowledge_basket",
+    workspace_id=workspace_id,  # From request context
+    basket_id="my_knowledge_basket",
         api_key="ynk_...",           # From YARNNN
         workspace_id="ws_..."         # From YARNNN
     )
     
     governance = YarnnnGovernance(
-        basket_id="my_knowledge_basket",
+    workspace_id=workspace_id,  # From request context
+    basket_id="my_knowledge_basket",
         api_key="ynk_...",
         workspace_id="ws_..."
     )
@@ -114,8 +116,12 @@ from claude_agent_sdk.integrations.yarnnn import YarnnnMemory, YarnnnGovernance
 
 async def main():
     # Setup providers
-    memory = YarnnnMemory(basket_id="research")
-    governance = YarnnnGovernance(basket_id="research")
+    memory = YarnnnMemory(
+    workspace_id=workspace_id,  # From request context
+    basket_id="research")
+    governance = YarnnnGovernance(
+    workspace_id=workspace_id,  # From request context
+    basket_id="research")
     
     # Create specialized knowledge agent
     agent = KnowledgeAgent(
@@ -148,7 +154,6 @@ ANTHROPIC_API_KEY=sk-ant-your-key-here
 # Optional: YARNNN (if using YARNNN integration)
 YARNNN_API_URL=https://your-yarnnn-instance.com
 YARNNN_API_KEY=ynk_your-key-here
-YARNNN_WORKSPACE_ID=ws_your-workspace-id
 YARNNN_BASKET_ID=basket_your-basket-id  # Can also specify per agent
 
 # Optional: Agent behavior
@@ -187,8 +192,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 If using YARNNN integration, you need:
 ```bash
 export YARNNN_API_KEY=ynk_...
-export YARNNN_WORKSPACE_ID=ws_...
-```
+export ```
 
 ### Import errors
 Make sure you're in the project directory and dependencies are installed:

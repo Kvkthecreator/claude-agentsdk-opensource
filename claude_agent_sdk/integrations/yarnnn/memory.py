@@ -20,11 +20,12 @@ class YarnnnMemory(MemoryProvider):
     Provides memory operations using YARNNN substrate as the backend.
 
     Usage:
+        # workspace_id is REQUIRED (user/tenant-specific)
         memory = YarnnnMemory(
-            api_url="https://yarnnn.example.com",
-            api_key="ynk_...",
-            workspace_id="ws_123",
-            basket_id="basket_456"
+            workspace_id="ws_user123",  # Required from request context
+            basket_id="basket_456",
+            api_url="https://yarnnn.example.com",  # Optional, falls back to env
+            api_key="ynk_..."  # Optional, falls back to env
         )
 
         # Query for context
@@ -36,31 +37,38 @@ class YarnnnMemory(MemoryProvider):
 
     def __init__(
         self,
+        workspace_id: str,
         basket_id: str,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        workspace_id: Optional[str] = None,
         timeout: int = 30
     ):
         """
         Initialize YARNNN memory provider.
 
         Args:
+            workspace_id: Workspace ID (REQUIRED - user/tenant-specific)
             basket_id: YARNNN basket to operate on
             api_url: YARNNN API URL (default: from YARNNN_API_URL env)
             api_key: YARNNN API key (default: from YARNNN_API_KEY env)
-            workspace_id: Workspace ID (default: from YARNNN_WORKSPACE_ID env)
             timeout: Request timeout in seconds
+
+        Raises:
+            ValueError: If workspace_id is not provided
+
+        Note:
+            workspace_id must be explicitly provided as it's user/tenant-specific.
+            Service-level credentials (api_url, api_key) can fall back to environment variables.
         """
         self.basket_id = basket_id
         self.client = YarnnnClient(
+            workspace_id=workspace_id,
             api_url=api_url,
             api_key=api_key,
-            workspace_id=workspace_id,
             timeout=timeout
         )
 
-        logger.info(f"Initialized YarnnnMemory for basket {basket_id}")
+        logger.info(f"Initialized YarnnnMemory for workspace {workspace_id}, basket {basket_id}")
 
     async def query(
         self,

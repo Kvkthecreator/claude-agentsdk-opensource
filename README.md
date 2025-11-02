@@ -328,7 +328,7 @@ Swap providers without changing agent code:
 
 ```python
 # YARNNN provider
-memory = YarnnnMemory(basket_id="basket_123")
+memory = YarnnnMemory(workspace_id="ws_user123", basket_id="basket_123")
 
 # Future: Notion provider
 # memory = NotionMemory(database_id="db_456")
@@ -482,8 +482,8 @@ from examples.knowledge_agent.agent_v2 import KnowledgeAgent
 
 agent = KnowledgeAgent(
     agent_id="research_bot",
-    memory=YarnnnMemory(basket_id="research"),
-    governance=YarnnnGovernance(basket_id="research"),
+    memory=YarnnnMemory(workspace_id=workspace_id, basket_id="research"),
+    governance=YarnnnGovernance(workspace_id=workspace_id, basket_id="research"),
     anthropic_api_key="sk-ant-..."
 )
 
@@ -539,10 +539,12 @@ claude-agent-sdk/
 ANTHROPIC_API_KEY=sk-ant-...
 
 # YARNNN (if using YARNNN integration)
+# Service-level credentials (can be set as environment variables)
 YARNNN_API_URL=https://yarnnn.example.com
 YARNNN_API_KEY=ynk_...
-YARNNN_WORKSPACE_ID=ws_...
-YARNNN_BASKET_ID=basket_...  # Optional, can specify per agent
+
+# NOTE: workspace_id must be provided explicitly in code (user/tenant-specific)
+# It should NOT be an environment variable for multi-tenant deployments
 
 # Agent Behavior
 AGENT_AUTO_APPROVE=false  # Auto-approve high-confidence proposals

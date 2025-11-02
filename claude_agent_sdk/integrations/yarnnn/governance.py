@@ -20,11 +20,12 @@ class YarnnnGovernance(GovernanceProvider):
     Provides governance operations using YARNNN's proposal system.
 
     Usage:
+        # workspace_id is REQUIRED (user/tenant-specific)
         governance = YarnnnGovernance(
-            api_url="https://yarnnn.example.com",
-            api_key="ynk_...",
-            workspace_id="ws_123",
-            basket_id="basket_456"
+            workspace_id="ws_user123",  # Required from request context
+            basket_id="basket_456",
+            api_url="https://yarnnn.example.com",  # Optional, falls back to env
+            api_key="ynk_..."  # Optional, falls back to env
         )
 
         # Propose changes
@@ -40,31 +41,38 @@ class YarnnnGovernance(GovernanceProvider):
 
     def __init__(
         self,
+        workspace_id: str,
         basket_id: str,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        workspace_id: Optional[str] = None,
         timeout: int = 30
     ):
         """
         Initialize YARNNN governance provider.
 
         Args:
+            workspace_id: Workspace ID (REQUIRED - user/tenant-specific)
             basket_id: YARNNN basket to operate on
             api_url: YARNNN API URL (default: from YARNNN_API_URL env)
             api_key: YARNNN API key (default: from YARNNN_API_KEY env)
-            workspace_id: Workspace ID (default: from YARNNN_WORKSPACE_ID env)
             timeout: Request timeout in seconds
+
+        Raises:
+            ValueError: If workspace_id is not provided
+
+        Note:
+            workspace_id must be explicitly provided as it's user/tenant-specific.
+            Service-level credentials (api_url, api_key) can fall back to environment variables.
         """
         self.basket_id = basket_id
         self.client = YarnnnClient(
+            workspace_id=workspace_id,
             api_url=api_url,
             api_key=api_key,
-            workspace_id=workspace_id,
             timeout=timeout
         )
 
-        logger.info(f"Initialized YarnnnGovernance for basket {basket_id}")
+        logger.info(f"Initialized YarnnnGovernance for workspace {workspace_id}, basket {basket_id}")
 
     async def propose(
         self,
