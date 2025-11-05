@@ -461,13 +461,15 @@ Your capabilities depend on the providers configured:
         start_time = time.time()
         result = None
         success = False
-        error = None
+        error_msg = None
+        error_type = None
 
         try:
             result = await step_fn(context) if callable(step_fn) else step_fn
             success = True
         except Exception as e:
-            error = e
+            error_msg = str(e)
+            error_type = type(e).__name__
             self.logger.error(f"Step '{step_name}' failed: {e}")
 
             # Hook: on_error
@@ -487,7 +489,8 @@ Your capabilities depend on the providers configured:
                     step_name=step_name,
                     output=result,
                     success=success,
-                    error=error,
+                    error=error_msg,
+                    error_type=error_type,
                     duration=duration,
                     metadata={}
                 )

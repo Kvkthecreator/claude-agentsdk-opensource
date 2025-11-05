@@ -75,7 +75,8 @@ class StepResult(BaseModel):
     step_name: str
     output: Any
     success: bool
-    error: Optional[Exception] = None
+    error: Optional[str] = None  # Error message as string
+    error_type: Optional[str] = None  # Exception class name
     duration: float = 0.0
     metadata: Dict[str, Any] = {}
 
