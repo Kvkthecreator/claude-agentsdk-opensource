@@ -55,14 +55,10 @@ Documentation = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn/tree/mai
 Repository = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn"
 "Bug Tracker" = "https://github.com/Kvkthecreator/claude-agentsdk-yarnn/issues"
 
-[tool.setuptools]
-packages = [
-    "claude_agent_sdk",
-    "claude_agent_sdk.archetypes",
-    "claude_agent_sdk.integrations",
-    "claude_agent_sdk.integrations.memory",
-    "claude_agent_sdk.integrations.yarnnn",
-]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["claude_agent_sdk*"]
+exclude = ["tests*", "examples*", "docs*"]
 
 [tool.black]
 line-length = 100
