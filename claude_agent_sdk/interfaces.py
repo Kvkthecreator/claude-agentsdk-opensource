@@ -6,8 +6,9 @@ to work with the Claude Agent SDK.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable, Awaitable
 from pydantic import BaseModel
+from enum import Enum
 
 
 # === Data Models ===
@@ -43,6 +44,73 @@ class Task(BaseModel):
     description: str
     status: str  # "pending", "in_progress", "completed", "failed"
     metadata: Dict[str, Any] = {}
+
+
+# === Lifecycle Hook Models ===
+
+class InterruptDecision(str, Enum):
+    """Decision on how to handle an interrupt signal"""
+    PAUSE = "pause"      # Pause execution, save state
+    CONTINUE = "continue"  # Acknowledge but continue
+    ABORT = "abort"      # Stop execution completely
+
+
+class StepContext(BaseModel):
+    """
+    Context passed to on_step_start hook.
+
+    Contains information about the step being executed.
+    """
+    step_name: str
+    inputs: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = {}
+
+
+class StepResult(BaseModel):
+    """
+    Result passed to on_step_end hook.
+
+    Contains information about the completed step.
+    """
+    step_name: str
+    output: Any
+    success: bool
+    error: Optional[Exception] = None
+    duration: float = 0.0
+    metadata: Dict[str, Any] = {}
+
+
+class AgentState(BaseModel):
+    """
+    Current agent state passed to all hooks.
+
+    Minimal state object - applications can access agent.memory,
+    agent.session, etc. directly if needed.
+    """
+    agent_id: str
+    session_id: Optional[str] = None
+    current_step: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+
+
+# === Hook Type Signatures ===
+
+# Step lifecycle hooks
+StepStartHook = Callable[[AgentState, StepContext], Awaitable[None]]
+StepEndHook = Callable[[AgentState, StepResult], Awaitable[None]]
+
+# Execution lifecycle hooks
+ExecuteStartHook = Callable[[AgentState, str], Awaitable[None]]
+ExecuteEndHook = Callable[[AgentState, Any], Awaitable[None]]
+
+# Interrupt handling
+InterruptHook = Callable[[AgentState, str, Dict[str, Any]], Awaitable[InterruptDecision]]
+
+# Error handling
+ErrorHook = Callable[[AgentState, Exception, Optional[str]], Awaitable[None]]
+
+# Checkpoint opportunity
+CheckpointHook = Callable[[AgentState, str, Dict[str, Any]], Awaitable[None]]
 
 
 # === Provider Interfaces ===

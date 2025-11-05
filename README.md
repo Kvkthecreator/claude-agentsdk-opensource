@@ -361,6 +361,50 @@ task_agent = MyAgent(
 )
 ```
 
+### 5. Lifecycle Hooks
+
+Lifecycle hooks enable custom orchestration, monitoring, and governance on top of the SDK:
+
+```python
+from claude_agent_sdk import AgentState, StepResult
+
+# Define hooks
+async def on_step_end(state: AgentState, result: StepResult):
+    # Save step artifacts to your database
+    await db.save_artifact(
+        session_id=state.session_id,
+        step_name=result.step_name,
+        output=result.output
+    )
+
+async def on_checkpoint_opportunity(state: AgentState, name: str, data: dict):
+    # Pause for human review
+    await notify_user(f"Checkpoint '{name}' ready for review")
+    approved = await wait_for_approval(timeout=3600)
+    if not approved:
+        raise CheckpointRejectedError()
+
+# Create agent with hooks
+agent = ResearchAgent(
+    memory=memory_provider,
+    on_step_end=on_step_end,
+    on_checkpoint_opportunity=on_checkpoint_opportunity,
+    anthropic_api_key="sk-ant-..."
+)
+
+# Agent automatically invokes hooks during execution
+result = await agent.monitor("Healthcare AI trends")
+```
+
+**Available Hooks:**
+- `on_step_start` / `on_step_end` - Step lifecycle
+- `before_execute` / `after_execute` - Execution lifecycle
+- `on_checkpoint_opportunity` - Manual checkpoints
+- `on_interrupt_signal` - External interrupts
+- `on_error` - Error handling
+
+**Learn More:** [Lifecycle Hooks Guide](./docs/lifecycle-hooks.md) | [Examples](./examples/03_lifecycle_hooks.py)
+
 ## Provider Interfaces
 
 The SDK defines three abstract provider interfaces:

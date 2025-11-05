@@ -25,7 +25,24 @@ Example:
 """
 
 from .base import BaseAgent
-from .interfaces import MemoryProvider, GovernanceProvider, TaskProvider
+from .interfaces import (
+    MemoryProvider,
+    GovernanceProvider,
+    TaskProvider,
+    # Lifecycle hook models
+    InterruptDecision,
+    StepContext,
+    StepResult,
+    AgentState,
+    # Hook type signatures
+    StepStartHook,
+    StepEndHook,
+    ExecuteStartHook,
+    ExecuteEndHook,
+    InterruptHook,
+    ErrorHook,
+    CheckpointHook,
+)
 from .session import AgentSession
 from .subagents import SubagentDefinition, SubagentRegistry
 
@@ -39,4 +56,16 @@ __all__ = [
     "AgentSession",
     "SubagentDefinition",
     "SubagentRegistry",
+    # Lifecycle hooks
+    "InterruptDecision",
+    "StepContext",
+    "StepResult",
+    "AgentState",
+    "StepStartHook",
+    "StepEndHook",
+    "ExecuteStartHook",
+    "ExecuteEndHook",
+    "InterruptHook",
+    "ErrorHook",
+    "CheckpointHook",
 ]

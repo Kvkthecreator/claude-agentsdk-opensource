@@ -10,11 +10,28 @@ This class provides the core infrastructure for building agents with:
 
 import os
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from anthropic import AsyncAnthropic
 
-from .interfaces import MemoryProvider, GovernanceProvider, TaskProvider
+from .interfaces import (
+    MemoryProvider,
+    GovernanceProvider,
+    TaskProvider,
+    # Lifecycle hooks
+    StepStartHook,
+    StepEndHook,
+    ExecuteStartHook,
+    ExecuteEndHook,
+    InterruptHook,
+    ErrorHook,
+    CheckpointHook,
+    StepContext,
+    StepResult,
+    AgentState,
+    InterruptDecision,
+)
 from .session import AgentSession, generate_agent_id
 from .subagents import SubagentRegistry, SubagentDefinition, create_subagent_tool
 
@@ -104,6 +121,15 @@ class BaseAgent(ABC):
         confidence_threshold: float = 0.8,
         max_retries: int = 3,
 
+        # Lifecycle hooks (all optional)
+        on_step_start: Optional[StepStartHook] = None,
+        on_step_end: Optional[StepEndHook] = None,
+        before_execute: Optional[ExecuteStartHook] = None,
+        after_execute: Optional[ExecuteEndHook] = None,
+        on_interrupt_signal: Optional[InterruptHook] = None,
+        on_error: Optional[ErrorHook] = None,
+        on_checkpoint_opportunity: Optional[CheckpointHook] = None,
+
         # Additional metadata
         metadata: Optional[Dict[str, Any]] = None
     ):
@@ -124,6 +150,13 @@ class BaseAgent(ABC):
             auto_approve: Auto-approve high-confidence proposals
             confidence_threshold: Threshold for auto-approval
             max_retries: Maximum retries for failed operations
+            on_step_start: Hook called before each step execution (optional)
+            on_step_end: Hook called after each step execution (optional)
+            before_execute: Hook called before agent.execute() (optional)
+            after_execute: Hook called after agent.execute() (optional)
+            on_interrupt_signal: Hook called when interrupt is signaled (optional)
+            on_error: Hook called when error occurs (optional)
+            on_checkpoint_opportunity: Hook called at checkpoint opportunities (optional)
             metadata: Additional agent metadata
         """
         # Agent identity
@@ -164,6 +197,17 @@ class BaseAgent(ABC):
 
         # Metadata
         self.metadata = metadata or {}
+
+        # Lifecycle hooks
+        self.hooks = {
+            "step_start": on_step_start,
+            "step_end": on_step_end,
+            "execute_start": before_execute,
+            "execute_end": after_execute,
+            "interrupt": on_interrupt_signal,
+            "error": on_error,
+            "checkpoint": on_checkpoint_opportunity,
+        }
 
         # Subagent registry
         self.subagents = SubagentRegistry(self)
@@ -354,6 +398,190 @@ Your capabilities depend on the providers configured:
             max_tokens=kwargs.get("max_tokens", 4096)
         )
 
+    def _get_state(self) -> AgentState:
+        """
+        Build current agent state for hooks.
+
+        Returns:
+            AgentState with current state information
+        """
+        return AgentState(
+            agent_id=self.agent_id,
+            session_id=self.current_session.id if self.current_session else None,
+            current_step=getattr(self, '_current_step', None),
+            metadata=self.metadata
+        )
+
+    async def execute_step(
+        self,
+        step_name: str,
+        step_fn: Any,
+        inputs: Optional[Dict[str, Any]] = None
+    ) -> Any:
+        """
+        Execute a logical step with lifecycle hooks.
+
+        This is a helper for agent implementations to define steps with
+        automatic hook invocation.
+
+        Args:
+            step_name: Name of the step (e.g., "plan", "web_monitor", "analyze")
+            step_fn: Async function to execute (can be lambda or method)
+            inputs: Optional inputs to pass to the step
+
+        Returns:
+            Step execution result
+
+        Example:
+            await self.execute_step("plan", self._create_plan)
+            await self.execute_step("monitor", lambda ctx: self.subagents.execute("web_monitor", task))
+
+        Raises:
+            Exception: If step execution fails (after calling on_error hook)
+        """
+        # Track current step
+        self._current_step = step_name
+
+        # Build context
+        context = StepContext(
+            step_name=step_name,
+            inputs=inputs or {},
+            metadata={}
+        )
+
+        # Hook: on_step_start
+        if self.hooks["step_start"]:
+            try:
+                await self.hooks["step_start"](self._get_state(), context)
+            except Exception as e:
+                self.logger.error(f"on_step_start hook failed: {e}")
+                raise
+
+        # Execute step
+        start_time = time.time()
+        result = None
+        success = False
+        error = None
+
+        try:
+            result = await step_fn(context) if callable(step_fn) else step_fn
+            success = True
+        except Exception as e:
+            error = e
+            self.logger.error(f"Step '{step_name}' failed: {e}")
+
+            # Hook: on_error
+            if self.hooks["error"]:
+                try:
+                    await self.hooks["error"](self._get_state(), e, step_name)
+                except Exception as hook_error:
+                    self.logger.error(f"on_error hook failed: {hook_error}")
+
+            raise
+        finally:
+            duration = time.time() - start_time
+
+            # Hook: on_step_end
+            if self.hooks["step_end"]:
+                step_result = StepResult(
+                    step_name=step_name,
+                    output=result,
+                    success=success,
+                    error=error,
+                    duration=duration,
+                    metadata={}
+                )
+                try:
+                    await self.hooks["step_end"](self._get_state(), step_result)
+                except Exception as e:
+                    self.logger.error(f"on_step_end hook failed: {e}")
+                    # Don't raise here - step completed successfully
+
+            # Clear current step
+            self._current_step = None
+
+        return result
+
+    async def send_interrupt(
+        self,
+        reason: str,
+        data: Optional[Dict[str, Any]] = None
+    ) -> InterruptDecision:
+        """
+        Signal an interrupt to the agent.
+
+        This is called externally (e.g., from API endpoint) to interrupt
+        agent execution. The hook decides how to handle the interrupt.
+
+        Args:
+            reason: Reason for interrupt (e.g., "user_interrupt", "error", "timeout")
+            data: Optional additional data about the interrupt
+
+        Returns:
+            InterruptDecision (PAUSE, CONTINUE, or ABORT)
+
+        Example:
+            # From YARNNN API endpoint:
+            decision = await agent.send_interrupt(
+                reason="user_interrupt",
+                data={"message": "Please review progress"}
+            )
+        """
+        if self.hooks["interrupt"]:
+            try:
+                decision = await self.hooks["interrupt"](
+                    self._get_state(),
+                    reason,
+                    data or {}
+                )
+                self.logger.info(f"Interrupt '{reason}' → {decision}")
+                return decision
+            except Exception as e:
+                self.logger.error(f"on_interrupt_signal hook failed: {e}")
+                raise
+        else:
+            # No hook - default to continue
+            self.logger.warning(f"Interrupt '{reason}' received but no handler configured")
+            return InterruptDecision.CONTINUE
+
+    async def offer_checkpoint(
+        self,
+        checkpoint_name: str,
+        data: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Signal a checkpoint opportunity to the hook.
+
+        This is called by agent implementations when they reach a point
+        where human review might be valuable. The hook decides whether
+        to pause execution.
+
+        Args:
+            checkpoint_name: Name of checkpoint (e.g., "plan_ready", "findings_ready")
+            data: Optional data for review (plan, findings, etc.)
+
+        Example:
+            await self.offer_checkpoint("plan_ready", {"plan": monitoring_plan})
+            # Hook may pause execution here for review
+
+        Raises:
+            Exception: If checkpoint is rejected or times out
+        """
+        if self.hooks["checkpoint"]:
+            try:
+                await self.hooks["checkpoint"](
+                    self._get_state(),
+                    checkpoint_name,
+                    data or {}
+                )
+                self.logger.info(f"Checkpoint '{checkpoint_name}' offered")
+            except Exception as e:
+                self.logger.error(f"Checkpoint '{checkpoint_name}' failed: {e}")
+                raise
+        else:
+            # No hook - just log
+            self.logger.debug(f"Checkpoint '{checkpoint_name}' (no handler)")
+
     @abstractmethod
     async def execute(
         self,
@@ -377,6 +605,10 @@ Your capabilities depend on the providers configured:
         Note:
             When implementing this method in subclasses, use _start_session(task_id, task_metadata)
             to properly link the AgentSession to external task systems.
+
+            To use lifecycle hooks, structure execution with execute_step():
+                await self.execute_step("plan", self._create_plan)
+                await self.execute_step("execute", self._do_work)
 
         Raises:
             NotImplementedError: Must be implemented by subclass
