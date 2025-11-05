@@ -19,5 +19,5 @@ setup(
     name="claude-agent-sdk",
     version=get_version(),
     packages=find_packages(include=["claude_agent_sdk*"]),
-    python_requires=">=3.10",
+    python_requires=">=3.9",
 )
