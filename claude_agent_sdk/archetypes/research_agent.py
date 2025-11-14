@@ -17,7 +17,13 @@ from datetime import datetime
 
 from ..base import BaseAgent
 from ..subagents import SubagentDefinition
-from ..interfaces import MemoryProvider, GovernanceProvider, TaskProvider, Change
+from ..interfaces import (
+    MemoryProvider,
+    GovernanceProvider,
+    TaskProvider,
+    Change,
+    extract_metadata_from_contexts
+)
 
 
 logger = logging.getLogger(__name__)
@@ -306,6 +312,10 @@ Output style:
         """
         Execute continuous monitoring across all configured domains.
 
+        Metadata Enhancement:
+        - Uses agent_config for watchlist items, alert rules, confidence thresholds
+        - Gracefully degrades if metadata not provided (backward compatible)
+
         This is typically scheduled to run automatically.
 
         Returns:
@@ -313,17 +323,65 @@ Output style:
         """
         self.logger.info(f"Starting monitoring scan - Domains: {self.monitoring_domains}")
 
+        # Get context from memory (may include metadata)
+        contexts = []
+        if self.memory:
+            contexts = await self.memory.query("Monitor configured topics and domains", limit=10)
+
+        # ENHANCEMENT: Extract metadata (generic pattern)
+        metadata = extract_metadata_from_contexts(contexts)
+        config = metadata.get("agent_config", {}) if metadata else {}
+
+        # Use config-driven monitoring parameters (if available)
+        domains = self.monitoring_domains.copy()
+        topics = []
+        competitors = []
+        confidence_threshold = self.signal_threshold
+        enhanced_with_metadata = bool(config)
+
+        if config:
+            # Extract watchlist if available (implementation-specific, but generic pattern)
+            if "watchlist" in config:
+                watchlist = config["watchlist"]
+                if isinstance(watchlist, dict):
+                    topics = watchlist.get("topics", [])
+                    competitors = watchlist.get("competitors", [])
+                    # Extend monitoring scope with config-driven topics
+                    if topics:
+                        domains.extend([f"topic:{t}" for t in topics])
+                    if competitors:
+                        domains.extend([f"competitor:{c}" for c in competitors])
+
+            # Extract alert rules if available (implementation-specific, but generic pattern)
+            if "alert_rules" in config:
+                alert_rules = config["alert_rules"]
+                if isinstance(alert_rules, dict):
+                    confidence_threshold = alert_rules.get("confidence_threshold", confidence_threshold)
+                    # Could also extract other rules like keywords, notification preferences, etc.
+
+            self.logger.info(
+                f"Enhanced monitoring with config: "
+                f"{len(topics)} topics, {len(competitors)} competitors, "
+                f"threshold={confidence_threshold}"
+            )
+
         results = {
             "timestamp": datetime.utcnow().isoformat(),
-            "domains": self.monitoring_domains,
+            "domains": domains,
             "signals": [],
-            "insights": None
+            "insights": None,
+            "enhanced_with_metadata": enhanced_with_metadata,
+            "config": {
+                "topics": topics,
+                "competitors": competitors,
+                "confidence_threshold": confidence_threshold
+            }
         }
 
         # Delegate to monitoring subagents in parallel
         monitoring_tasks = []
 
-        for domain in self.monitoring_domains:
+        for domain in domains:
             if domain == "competitors" or "competitor" in domain:
                 monitoring_tasks.append(("competitor_tracker", f"Monitor competitors in {domain}"))
             elif domain == "social" or "trends" in domain:
@@ -334,11 +392,12 @@ Output style:
         # Execute monitoring (in real implementation, this would be parallel)
         for subagent_name, task in monitoring_tasks:
             try:
-                # Get relevant context from memory
+                # Get relevant context from memory (filter out metadata context)
                 context = None
-                if self.memory:
-                    memory_results = await self.memory.query(task, limit=5)
-                    context = "\n".join([r.content for r in memory_results])
+                if contexts:
+                    block_contexts = [c for c in contexts if c.content not in ["[AGENT EXECUTION CONTEXT]", "[METADATA]"]]
+                    if block_contexts:
+                        context = "\n".join([r.content for r in block_contexts])
 
                 # Delegate to subagent
                 result = await self.subagents.delegate(

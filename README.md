@@ -405,6 +405,87 @@ result = await agent.monitor("Healthcare AI trends")
 
 **Learn More:** [Lifecycle Hooks Guide](./docs/lifecycle-hooks.md) | [Examples](./examples/03_lifecycle_hooks.py)
 
+### 6. Enhanced Context via Metadata
+
+Agents support enhanced context through the `Context.metadata` field. Implementations can inject custom data (files, configuration, custom context) to enhance agent behavior without changing SDK interfaces.
+
+#### What You Can Inject
+
+- **Reference Assets**: Files, documents, brand guidelines, templates
+- **Agent Configuration**: Behavioral parameters, preferences, rules
+- **External Context**: Session IDs, workspace info, custom data
+
+#### Implementation Example
+
+Implementations inject metadata as the first context item:
+
+```python
+from claude_agent_sdk.interfaces import Context
+
+# Implementation injects metadata (e.g., in YarnnnMemory.query())
+metadata_context = Context(
+    content="[AGENT EXECUTION CONTEXT]",  # Marker
+    metadata={
+        "reference_assets": [
+            {
+                "file_name": "brand_guidelines.pdf",
+                "asset_type": "brand_voice",
+                "signed_url": "https://storage.example.com/...",
+                "description": "Primary brand voice guidelines"
+            }
+        ],
+        "agent_config": {
+            "brand_voice": {
+                "tone": "professional",
+                "voice_guidelines": "Clear and authoritative"
+            },
+            "platforms": {
+                "linkedin": {"include_hashtags": True, "max_hashtags": 5}
+            }
+        }
+    }
+)
+
+# Return as first item
+contexts = [metadata_context, ...regular_blocks...]
+return contexts
+```
+
+#### Agent Usage Example
+
+Agents automatically detect and use metadata if available:
+
+```python
+from claude_agent_sdk.interfaces import extract_metadata_from_contexts
+
+# Get contexts (may include metadata)
+contexts = await self.memory.query("task description")
+
+# Extract metadata safely (returns {} if not found)
+metadata = extract_metadata_from_contexts(contexts)
+
+# Use metadata to enhance behavior
+if metadata:
+    assets = metadata.get("reference_assets", [])
+    for asset in assets:
+        prompt += f"Reference: {asset['file_name']}\n"
+        prompt += f"URL: {asset['signed_url']}\n"
+
+    config = metadata.get("agent_config", {})
+    if "brand_voice" in config:
+        tone = config["brand_voice"].get("tone")
+        prompt += f"Tone: {tone}\n"
+```
+
+#### Key Benefits
+
+- **Backward Compatible**: Agents work without metadata
+- **Generic Pattern**: Not tied to specific implementations
+- **Graceful Degradation**: Missing fields handled safely
+- **Extensible**: Add any custom metadata fields
+
+**Learn More:** [Metadata Pattern Guide](./docs/METADATA_PATTERN.md)
+
 ## Provider Interfaces
 
 The SDK defines three abstract provider interfaces:

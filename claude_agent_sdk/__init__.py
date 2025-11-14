@@ -46,7 +46,7 @@ from .interfaces import (
 from .session import AgentSession
 from .subagents import SubagentDefinition, SubagentRegistry
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "BaseAgent",

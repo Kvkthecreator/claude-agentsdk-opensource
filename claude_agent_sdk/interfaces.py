@@ -278,6 +278,58 @@ class GovernanceProvider(ABC):
         return proposal.confidence >= confidence_threshold
 
 
+# === Metadata Helpers ===
+
+def extract_metadata_from_contexts(
+    contexts: List[Context],
+    metadata_key: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Extract metadata from context list using generic pattern.
+
+    Convention: First context with special marker content contains metadata.
+    Common markers: "[AGENT EXECUTION CONTEXT]", "[METADATA]"
+
+    This is a generic helper that works with ANY metadata structure.
+    Implementations can inject custom data without changing SDK interfaces.
+
+    Args:
+        contexts: List of Context objects from memory query
+        metadata_key: Optional specific key to extract from metadata.
+                     If None, returns entire metadata dictionary.
+
+    Returns:
+        Metadata dictionary or empty dict if not found
+
+    Example:
+        # Get all metadata
+        metadata = extract_metadata_from_contexts(contexts)
+
+        # Get specific metadata keys (implementation-specific)
+        assets = extract_metadata_from_contexts(contexts, "reference_assets")
+        config = extract_metadata_from_contexts(contexts, "agent_config")
+
+    Design:
+        - Backward compatible: Returns {} if no metadata found
+        - Generic: Works with any metadata structure
+        - Implementation-agnostic: No assumptions about metadata schema
+    """
+    if not contexts:
+        return {}
+
+    # Check first context for metadata marker
+    first = contexts[0]
+    if hasattr(first, 'metadata') and first.metadata:
+        # Check if this is a metadata context (implementation convention)
+        # Common markers: "[AGENT EXECUTION CONTEXT]", "[METADATA]"
+        if first.content in ["[AGENT EXECUTION CONTEXT]", "[METADATA]"]:
+            if metadata_key:
+                return first.metadata.get(metadata_key, {})
+            return first.metadata
+
+    return {}
+
+
 class TaskProvider(ABC):
     """
     Abstract interface for task/work providers.

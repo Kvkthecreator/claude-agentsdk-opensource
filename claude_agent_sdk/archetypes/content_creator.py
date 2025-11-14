@@ -17,7 +17,13 @@ from datetime import datetime
 
 from ..base import BaseAgent
 from ..subagents import SubagentDefinition
-from ..interfaces import MemoryProvider, GovernanceProvider, TaskProvider, Change
+from ..interfaces import (
+    MemoryProvider,
+    GovernanceProvider,
+    TaskProvider,
+    Change,
+    extract_metadata_from_contexts
+)
 
 
 logger = logging.getLogger(__name__)
@@ -419,7 +425,12 @@ For each target platform:
         content_type: str = "post"
     ) -> Dict[str, Any]:
         """
-        Create platform-specific content.
+        Create platform-specific content with optional metadata enhancement.
+
+        Metadata Enhancement:
+        - Uses reference_assets (brand guidelines, examples) if available
+        - Applies agent_config (tone preferences, platform rules) if available
+        - Gracefully degrades if metadata not provided (backward compatible)
 
         Args:
             platform: Target platform (twitter, linkedin, blog, instagram)
@@ -432,16 +443,90 @@ For each target platform:
         self.logger.info(f"Creating {content_type} for {platform}: {topic[:50]}...")
 
         # Get brand voice context from memory
-        voice_context = None
+        contexts = []
+        voice_context = ""
+
         if self.memory:
             # Query for approved content to learn voice
-            voice_examples = await self.memory.query(
+            contexts = await self.memory.query(
                 f"{platform} approved content",
                 limit=5
             )
-            if voice_examples:
+
+            # Separate metadata context from regular block contexts
+            block_contexts = [c for c in contexts if c.content not in ["[AGENT EXECUTION CONTEXT]", "[METADATA]"]]
+
+            if block_contexts:
                 voice_context = "Previous approved content (learn voice):\n"
-                voice_context += "\n---\n".join([ex.content for ex in voice_examples])
+                voice_context += "\n---\n".join([ctx.content for ctx in block_contexts])
+
+        # ENHANCEMENT: Extract metadata (generic pattern)
+        metadata = extract_metadata_from_contexts(contexts)
+        enhanced_with_metadata = bool(metadata)
+
+        # Build enhanced context from metadata (if available)
+        if metadata:
+            # Use reference assets if available (implementation-specific, but generic pattern)
+            assets = metadata.get("reference_assets", [])
+            if assets:
+                voice_context += "\n\n=== Reference Materials ===\n"
+                for asset in assets:
+                    # Generic: Use whatever fields the asset has
+                    name = asset.get("file_name", asset.get("name", "Unknown"))
+                    desc = asset.get("description", "")
+                    asset_type = asset.get("asset_type", asset.get("type", ""))
+                    url = asset.get("signed_url", asset.get("url", ""))
+
+                    voice_context += f"\n- **{name}**"
+                    if asset_type:
+                        voice_context += f" ({asset_type})"
+                    if desc:
+                        voice_context += f": {desc}"
+                    if url:
+                        voice_context += f"\n  URL: {url}"
+                    voice_context += "\n"
+
+                self.logger.info(f"Enhanced prompt with {len(assets)} reference assets")
+
+            # Use agent config if available (implementation-specific, but generic pattern)
+            config = metadata.get("agent_config", {})
+            if config:
+                voice_context += "\n\n=== Content Guidelines ===\n"
+
+                # Example: Extract brand voice preferences (if implementation provides it)
+                if "brand_voice" in config:
+                    brand_voice = config["brand_voice"]
+                    if isinstance(brand_voice, dict):
+                        if "tone" in brand_voice:
+                            voice_context += f"Tone: {brand_voice['tone']}\n"
+                        if "voice_guidelines" in brand_voice:
+                            voice_context += f"Voice: {brand_voice['voice_guidelines']}\n"
+                    else:
+                        voice_context += f"Brand Voice: {brand_voice}\n"
+
+                # Example: Extract platform-specific settings (if implementation provides it)
+                if "platforms" in config:
+                    platform_config = config["platforms"].get(platform.lower(), {})
+                    if platform_config:
+                        if platform_config.get("include_hashtags"):
+                            voice_context += "Include relevant hashtags.\n"
+                        if platform_config.get("max_hashtags"):
+                            voice_context += f"Maximum hashtags: {platform_config['max_hashtags']}\n"
+                        if platform_config.get("include_emojis"):
+                            voice_context += "Use emojis strategically.\n"
+
+                # Example: Extract content rules (if implementation provides it)
+                if "content_rules" in config:
+                    rules = config["content_rules"]
+                    if isinstance(rules, list):
+                        voice_context += "Content Rules:\n"
+                        for rule in rules:
+                            voice_context += f"- {rule}\n"
+                    elif isinstance(rules, dict):
+                        for rule_type, rule_value in rules.items():
+                            voice_context += f"{rule_type}: {rule_value}\n"
+
+                self.logger.info(f"Enhanced prompt with agent configuration")
 
         # Select appropriate subagent
         subagent_name = f"{platform}_writer"
@@ -454,7 +539,7 @@ For each target platform:
         result = await self.subagents.delegate(
             subagent_name=subagent_name,
             task=content_brief,
-            context=voice_context
+            context=voice_context if voice_context else None
         )
 
         # Prepare results
@@ -464,14 +549,18 @@ For each target platform:
             "topic": topic,
             "content": str(result),
             "timestamp": datetime.utcnow().isoformat(),
-            "status": "pending_approval"
+            "status": "pending_approval",
+            "enhanced_with_metadata": enhanced_with_metadata
         }
 
         # Propose to governance for approval
         if self.governance:
             await self._propose_content(created_content)
 
-        self.logger.info(f"Content created for {platform}: {content_type}")
+        self.logger.info(
+            f"Content created for {platform}: {content_type}"
+            f"{' (metadata-enhanced)' if enhanced_with_metadata else ''}"
+        )
 
         return created_content
 

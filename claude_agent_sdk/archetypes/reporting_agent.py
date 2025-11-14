@@ -17,7 +17,13 @@ from datetime import datetime
 
 from ..base import BaseAgent
 from ..subagents import SubagentDefinition
-from ..interfaces import MemoryProvider, GovernanceProvider, TaskProvider, Change
+from ..interfaces import (
+    MemoryProvider,
+    GovernanceProvider,
+    TaskProvider,
+    Change,
+    extract_metadata_from_contexts
+)
 
 
 logger = logging.getLogger(__name__)
@@ -385,7 +391,12 @@ Quality Standards:
         task_description: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Generate a report in specified format.
+        Generate a report in specified format with optional metadata enhancement.
+
+        Metadata Enhancement:
+        - Uses reference_assets (templates, style guides) if available
+        - Applies agent_config (formatting preferences, branding) if available
+        - Gracefully degrades if metadata not provided (backward compatible)
 
         Args:
             report_type: Type of report (monthly_metrics, executive_summary, etc.)
@@ -403,8 +414,91 @@ Quality Standards:
         if data:
             analysis = await self._analyze_data(data, report_type)
 
-        # Step 2: Get templates and style from memory
-        style_context = await self._get_style_context(format)
+        # Step 2: Get templates and style from memory (may include metadata)
+        contexts = []
+        style_context = ""
+
+        if self.memory:
+            # Query for template examples
+            contexts = await self.memory.query(
+                f"{format} template examples approved",
+                limit=3
+            )
+
+            # Separate metadata context from regular block contexts
+            block_contexts = [c for c in contexts if c.content not in ["[AGENT EXECUTION CONTEXT]", "[METADATA]"]]
+
+            if block_contexts:
+                style_context = f"Style guidelines for {format}:\n"
+                style_context += "\n".join([r.content for r in block_contexts])
+
+        # ENHANCEMENT: Extract metadata (generic pattern)
+        metadata = extract_metadata_from_contexts(contexts)
+        enhanced_with_metadata = bool(metadata)
+
+        # Build enhanced context from metadata (if available)
+        if metadata:
+            # Use reference assets if available (implementation-specific, but generic pattern)
+            assets = metadata.get("reference_assets", [])
+            if assets:
+                style_context += "\n\n=== Reference Templates & Assets ===\n"
+                for asset in assets:
+                    # Generic: Use whatever fields the asset has
+                    name = asset.get("file_name", asset.get("name", "Unknown"))
+                    desc = asset.get("description", "")
+                    asset_type = asset.get("asset_type", asset.get("type", ""))
+                    url = asset.get("signed_url", asset.get("url", ""))
+
+                    style_context += f"\n- **{name}**"
+                    if asset_type:
+                        style_context += f" ({asset_type})"
+                    if desc:
+                        style_context += f": {desc}"
+                    if url:
+                        style_context += f"\n  Reference URL: {url}"
+                    style_context += "\n"
+
+                self.logger.info(f"Enhanced report with {len(assets)} reference assets")
+
+            # Use agent config if available (implementation-specific, but generic pattern)
+            config = metadata.get("agent_config", {})
+            if config:
+                style_context += "\n\n=== Formatting & Brand Guidelines ===\n"
+
+                # Example: Extract report preferences (if implementation provides it)
+                if "report_preferences" in config:
+                    prefs = config["report_preferences"]
+                    if isinstance(prefs, dict):
+                        if prefs.get("include_toc"):
+                            style_context += "- Include Table of Contents\n"
+                        if prefs.get("include_executive_summary"):
+                            style_context += "- Include Executive Summary\n"
+                        if prefs.get("default_format"):
+                            style_context += f"- Preferred format: {prefs['default_format']}\n"
+                        if prefs.get("page_numbering"):
+                            style_context += f"- Page numbering: {prefs['page_numbering']}\n"
+
+                # Example: Extract formatting preferences (if implementation provides it)
+                if "formatting" in config:
+                    formatting = config["formatting"]
+                    if isinstance(formatting, dict):
+                        if formatting.get("chart_style"):
+                            style_context += f"- Chart style: {formatting['chart_style']}\n"
+                        if formatting.get("color_scheme"):
+                            style_context += f"- Color scheme: {formatting['color_scheme']}\n"
+                        if formatting.get("font_family"):
+                            style_context += f"- Font family: {formatting['font_family']}\n"
+
+                # Example: Extract brand voice (if implementation provides it)
+                if "brand_voice" in config:
+                    brand = config["brand_voice"]
+                    if isinstance(brand, dict):
+                        if brand.get("tone"):
+                            style_context += f"- Tone: {brand['tone']}\n"
+                    elif isinstance(brand, str):
+                        style_context += f"- Brand voice: {brand}\n"
+
+                self.logger.info(f"Enhanced report with configuration preferences")
 
         # Step 3: Delegate to format-specific subagent
         subagent_name = self._get_format_subagent(format)
@@ -419,7 +513,7 @@ Quality Standards:
         result = await self.subagents.delegate(
             subagent_name=subagent_name,
             task=brief,
-            context=style_context
+            context=style_context if style_context else None
         )
 
         # Prepare report
@@ -429,14 +523,18 @@ Quality Standards:
             "specification": str(result),
             "analysis": analysis,
             "timestamp": datetime.utcnow().isoformat(),
-            "status": "pending_approval"
+            "status": "pending_approval",
+            "enhanced_with_metadata": enhanced_with_metadata
         }
 
         # Propose to governance
         if self.governance:
             await self._propose_report(report)
 
-        self.logger.info(f"Report generated: {report_type} ({format})")
+        self.logger.info(
+            f"Report generated: {report_type} ({format})"
+            f"{' (metadata-enhanced)' if enhanced_with_metadata else ''}"
+        )
 
         return report
 
@@ -470,32 +568,6 @@ Quality Standards:
             "insights": str(result),
             "data_summary": str(data)[:500]  # Truncate for storage
         }
-
-    async def _get_style_context(self, format: str) -> Optional[str]:
-        """
-        Get style/template context from memory.
-
-        Args:
-            format: Output format
-
-        Returns:
-            Style guidelines and examples
-        """
-        if not self.memory:
-            return None
-
-        # Query for template examples
-        results = await self.memory.query(
-            f"{format} template examples approved",
-            limit=3
-        )
-
-        if results:
-            context = f"Style guidelines for {format}:\n"
-            context += "\n".join([r.content for r in results])
-            return context
-
-        return None
 
     def _get_format_subagent(self, format: str) -> str:
         """Map format to subagent name."""
